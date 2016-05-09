@@ -133,7 +133,9 @@ private val maxNumExecutorFailures = sparkConf.getInt("spark.yarn.max.executor.f
 |--executor-core|NUM|每个executor的核数。**在yarn或者standalone下使用**|
 |--driver-cores|NUM|Driver的核数，默认是1。**在yarn集群模式下使用**|
 |--queue|QUEUE_NAME|队列名称。**在yarn下使用**|
-|--num-executors|NUM|启动的executor数量。默认为2。在yarn下使用|
+|--num-executors|NUM|启动的executor数量。默认为2。**在yarn下使用**|
+
+&emsp;&emsp;你可以通过`spark-submit --help`或者`spark-shell --help`来查看这些参数。
 
 ## 参考文献
 
