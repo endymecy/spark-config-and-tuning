@@ -121,3 +121,6 @@ spark.streaming.backpressure.enabled=true
 # of executors * # of cores = # of partitions
 ```
 
+# 参考文献
+
+【1】[How Cigna Tuned Its Spark Streaming App for Real-time Processing with Apache Kafka](http://blog.cloudera.com/blog/2016/01/how-cigna-tuned-its-spark-streaming-app-for-real-time-processing-with-apache-kafka/)
