@@ -113,4 +113,11 @@ spark.streaming.backpressure.enabled=true
 --num-executors 20
 ```
 
+### 2.8 缓存方法
+
+&emsp;&emsp;使用`RDD`之前缓存`RDD`，但是记住在下次迭代之前从缓存中删除它。缓存那些需要使用多次的数据非常有用。然而，不要使分区数目过大。保持分区数目较低可以减少，最小化调度延迟。下面的公式是我们使用的分区数的计算公式。
+
+```shell
+# of executors * # of cores = # of partitions
+```
 
