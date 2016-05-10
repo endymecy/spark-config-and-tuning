@@ -42,4 +42,75 @@
 ```
 &emsp;&emsp;下面我们将详细介绍这些改变的参数。
 
+### 2.1 driver选项
+
+&emsp;&emsp;这里需要注意的是，`driver`运行在`spark on yarn`的集群模式下。因为`spark streaming`应用是一个长期运行的任务，生成的日志文件会很大。为了解决这个问题，我们限制了写入日志的消息的条数，
+并且用`RollingFileAppender`限制了它们的大小。我们也关闭了`spark.ui.showConsoleProgress`选项来禁用控制台日志消息。
+
+&emsp;&emsp;通过测试，我们的`driver`因为永久代空间填满而频繁发生内存耗尽（永久代空间是类、方法等存储的地方，不会被重新分配）。将永久代空间的大小升高到6G可以解决这个问题。
+
+```shell
+spark.driver.extraJavaOptions=-XX:MaxPermSize=6G
+```
+
+### 2.2 垃圾回收
+
+&emsp;&emsp;因为我们的`spark streaming`应用程序是一个长期运行的进程，在处理一段时间之后，我们注意到`GC`暂停时间过长，我们想在后台减少或者保持这个时间。调整`UseConcMarkSweepGC`参数是一个技巧。
+
+```shell
+--conf "spark.executor.extraJavaOptions=-XX:+UseConcMarkSweepGC -Dlog4j.configuration=log4j-eir.properties" \
+```
+
+### 2.3 禁用Tungsten
+
+&emsp;&emsp;`Tungsten`是`spark`执行引擎主要的改进。但是它的第一个版本是有问题的，所以我们暂时禁用它。
+
+```shell
+spark.sql.tungsten.enabled=false
+spark.sql.codegen=false
+spark.sql.unsafe.enabled=false
+```
+
+### 2.4 启用反压
+
+&emsp;&emsp;`Spark Streaming`在批处理时间大于批间隔时间时会出现问题。换一句话说，就是`spark`读取数据的速度慢于`kafka`数据到达的速度。如果按照这个吞吐量执行过长的时间，它会造成不稳定的情况。
+即接收`executor`的内存溢出。设置下面的参数解决这个问题。
+
+```shell
+spark.streaming.backpressure.enabled=true
+```
+
+### 2.5 调整本地化和块配置
+
+&emsp;&emsp;下面的两个参数是互补的。一个决定了数据本地化到`task`或者`executor`等待的时间，另外一个被`spark streaming receiver`使用对数据进行组块。块越大越好，但是如果数据没有本地化到`executor`，它将会通过网络移动到
+任务执行的地方。我们必须在这两个参数间找到一个好的平衡，因为我们不想数据块太大，并且也不想等待本地化太长时间。我们希望所有的任务都在几秒内完成。
+
+&emsp;&emsp;因此，我们改变本地化选项从3s到1s，我们也改变块间隔为1.5s。
+
+```shell
+--conf "spark.locality.wait=1s" \
+--conf "spark.streaming.blockInterval=1500ms" \
+```
+
+### 2.6 合并临时文件
+
+&emsp;&emsp;在`ext4`文件系统中，推荐开启这个功能。因为这会产生更少的临时文件。
+
+```scala
+--conf "spark.shuffle.consolidateFiles=true" \
+```
+
+### 2.7 开启executor配置
+
+&emsp;&emsp;在你配置`kafka Dstream`时，你能够指定并发消费线程的数量。然而，`kafka Dstream`的消费者会运行在相同的`spark driver`节点上面。因此，为了从多台机器上面并行消费`kafka topic`，
+我们必须实例化多个`Dstream`。虽然可以在处理之前合并相应的`RDD`，但是运行多个应用程序实例，把它们都作为相同`kafka consumer group`的一部分。
+
+&emsp;&emsp;为了达到这个目的，我们设置20个`executor`，并且每个`executor`有20个核。
+
+```shell
+--executor-memory 8G
+--executor-cores 20
+--num-executors 20
+```
+
 
