@@ -59,3 +59,85 @@ val values = myVeryLargeRDD.collect()
 - `collectAsMap`
 
 &emsp;&emsp;如果你确实需要将 `RDD` 里面的大量数据保存在内存中，你可以将 `RDD` 写成一个文件或者把 `RDD` 导出到一个容量足够大的数据库中。
+
+### 1.3 优雅地处理坏的输入数据
+
+&emsp;&emsp;当处理大量的数据的时候，一个常见的问题是有些数据格式不对或者内容有误。使用`filter`方法可以很容易丢弃坏的输入或者使用`map`方法可以修复可能修复的坏的数据。当你尝试着修复坏的数据，但是丢弃无法被修复的数据时，
+`flatMap`函数是最好的选择。让我们考虑下面的输入`json`串。
+
+```scala
+input_rdd = sc.parallelize(["{\"value\": 1}",  # Good
+                            "bad_json",  # Bad
+                            "{\"value\": 2}",  # Good
+                            "{\"value\": 3"  # Missing an ending brace.
+                            ])
+```
+&emsp;&emsp;当我们尝试着在`SqlContext`中使用这个输入串时，很明显它会因为格式不对而报错。
+
+```scala
+sqlContext.jsonRDD(input_rdd).registerTempTable("valueTable")
+# The above command will throw an error.
+```
+&emsp;&emsp;让我妈用下面的`python`代码修复输入数据。
+
+```python
+def try_correct_json(json_string):
+  try:
+    # First check if the json is okay.
+    json.loads(json_string)
+    return [json_string]
+  except ValueError:
+    try:
+      # If not, try correcting it by adding a ending brace.
+      try_to_correct_json = json_string + "}"
+      json.loads(try_to_correct_json)
+      return [try_to_correct_json]
+    except ValueError:
+      # The malformed json input can't be recovered, drop this input.
+      return []
+```
+&emsp;&emsp;经过上面函数的处理之后，我们就可以使用这些数据了。
+
+```scala
+corrected_input_rdd = input_rdd.flatMap(try_correct_json)
+sqlContext.jsonRDD(corrected_input_rdd).registerTempTable("valueTable")
+sqlContext.sql("select * from valueTable").collect()
+# Returns [Row(value=1), Row(value=2), Row(value=3)]
+```
+
+## 2 常规故障处理
+
+### 2.1 Job aborted due to stage failure: Task not serializable
+
+&emsp;&emsp;如果你看到以下错误：
+
+```
+org.apache.spark.SparkException: Job aborted due to stage failure:
+Task not serializable: java.io.NotSerializableException: ...
+```
+
+&emsp;&emsp;上述的错误在这种情况下会发生：当你在 `master` 上初始化一个变量，但是试图在 `worker` 上使用。
+在这个示例中， `Spark Streaming` 试图将对象序列化之后发送到 `worker` 上，如果这个对象不能被序列化就会失败。思考下面的代码片段：
+
+```scala
+NotSerializable notSerializable = new NotSerializable();
+JavaRDD<String> rdd = sc.textFile("/tmp/myfile");
+rdd.map(s -> notSerializable.doSomething(s)).collect();
+```
+&emsp;&emsp;这段代码会触发上面的错误。这里有一些建议修复这个错误：
+
+- 让 `class` 实现序列化
+- 在作为参数传递给 `map` 方法的 `lambda` 表达式内部声明实例
+- 在每一台机器上创建一个 `NotSerializable` 的静态实例
+- 调用 `rdd.forEachPartition` 并且像下面这样创建 `NotSerializable` 对象：
+
+```java
+rdd.forEachPartition(iter -> {
+  NotSerializable notSerializable = new NotSerializable();
+  // ...Now process iter
+});
+```
+
+
+
+
