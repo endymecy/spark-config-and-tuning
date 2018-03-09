@@ -51,7 +51,7 @@ charCounts.collect()
 
 &emsp;&emsp;运行到每个 `stage` 的边界时，数据在父 `stage` 中通过 `task` 写到磁盘上，而在子 `stage` 中经过网络通过 `task`去读取数据。这些操作会导致很重的网络以及磁盘的`I/O`，所以 `stage` 的边界是非常占资源的，在编写 `Spark` 程序的时候需要尽量避免的。父 `stage` 中 `partition` 个数与子 `stage` 的 `partition` 个数可能不同，所以那些产生 `stage` 边界的 `transformation` 常常需要接受一个`numPartition` 的参数来决定子 `stage` 中的数据将被切分为多少个 `partition`。<br><br/>
 
-&emsp;&emsp;正如在调试 `MapReduce` 是选择 `reducor` 的个数是一项非常重要的参数，调整在 `stage` 边届时的 `partition` 个数经常可以很大程度上影响程序的执行效率。我们会在后面的章节中讨论如何调整这些值。
+&emsp;&emsp;正如在调试 `MapReduce` 是选择 `reducor` 的个数是一项非常重要的参数，调整在 `stage` 边界时的 `partition` 个数经常可以很大程度上影响程序的执行效率。我们会在后面的章节中讨论如何调整这些值。
 
 # 2 选择正确的 Operator
 
