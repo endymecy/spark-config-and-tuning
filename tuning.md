@@ -59,8 +59,8 @@ charCounts.collect()
 
 &emsp;&emsp;选择 `Operator` 方案的主要目标是减少 `shuffle` 的次数以及被 `shuffle` 的文件的大小。因为 `shuffle` 是最耗资源的操作，所有 `shuffle` 的数据都需要写到磁盘并且通过网络传递。`repartition`，`join`，`cogroup`，以及任何 `*By` 或者 `*ByKey` 的 `transformation` 都需要 `shuffle` 数据。这些 `Operator` 不是所有都是平等的，但是有些常见的性能陷阱是需要注意的。<br></br>
 
-- **当进行联合规约操作时，避免使用 `groupByKey`。**举个例子，`rdd.groupByKey().mapValues(_ .sum)` 与 `rdd.reduceByKey(_ + _)` 执行的结果是一样的，但是前者需要把全部的数据通过网络传递一遍，而后者只需要根据每个 `key` 局部的 `partition` 累积结果，在 `shuffle` 的之后把局部的累积值相加后得到结果。
-- **当输入和输入的类型不一致时，避免使用 `reduceByKey`。**举个例子，我们需要实现为每一个`key`查找所有不相同的 `string`。一个方法是利用`map` 把每个元素的转换成一个 `Set`，再使用 `reduceByKey` 将这些 `Set` 合并起来
+- **当进行联合规约操作时，避免使用 `groupByKey`。** 举个例子，`rdd.groupByKey().mapValues(_ .sum)` 与 `rdd.reduceByKey(_ + _)` 执行的结果是一样的，但是前者需要把全部的数据通过网络传递一遍，而后者只需要根据每个 `key` 局部的 `partition` 累积结果，在 `shuffle` 的之后把局部的累积值相加后得到结果。
+- **当输入和输入的类型不一致时，避免使用 `reduceByKey`。** 举个例子，我们需要实现为每一个`key`查找所有不相同的 `string`。一个方法是利用`map` 把每个元素的转换成一个 `Set`，再使用 `reduceByKey` 将这些 `Set` 合并起来
 
 ```scala
 rdd.map(kv => (kv._1, new Set[String]() + kv._2))
@@ -74,7 +74,7 @@ rdd.aggregateByKey(zero)(
     (set, v) => set += v,
     (set1, set2) => set1 ++= set2)
 ```
-- **避免 flatMap-join-groupBy 的模式。**当有两个已经按照`key`分组的数据集，你希望将两个数据集合并，并且保持分组，这种情况可以使用 `cogroup`。这样可以避免对`group`进行装箱拆箱的开销。
+- **避免 flatMap-join-groupBy 的模式。** 当有两个已经按照`key`分组的数据集，你希望将两个数据集合并，并且保持分组，这种情况可以使用 `cogroup`。这样可以避免对`group`进行装箱拆箱的开销。
 
 # 3 什么时候不发生 Shuffle
 
